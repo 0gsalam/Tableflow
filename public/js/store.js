@@ -43,6 +43,35 @@ export async function initializeFirebaseServices() {
 }
 
 export async function ensureDefaultRestaurant(db, user) {
+  try {
+    const memberRestaurantsSnapshot = await getDocs(query(
+      collection(db, collections.restaurants),
+      where("memberUids", "array-contains", user.uid)
+    ));
+    if (!memberRestaurantsSnapshot.empty) {
+      const restaurants = memberRestaurantsSnapshot.docs
+        .map((restaurantDoc) => ({ id: restaurantDoc.id, ...restaurantDoc.data() }))
+        .sort((a, b) => (a.id === DEFAULT_RESTAURANT_ID ? -1 : b.id === DEFAULT_RESTAURANT_ID ? 1 : a.id.localeCompare(b.id)));
+      return restaurants[0];
+    }
+  } catch (error) {
+    if (error?.code !== "permission-denied") throw error;
+  }
+
+  const mainMemberRef = doc(db, collections.restaurants, DEFAULT_RESTAURANT_ID, "members", user.uid);
+  try {
+    const mainMemberSnapshot = await getDoc(mainMemberRef);
+    if (mainMemberSnapshot.exists()) {
+      const mainRestaurantRef = doc(db, collections.restaurants, DEFAULT_RESTAURANT_ID);
+      const mainRestaurantSnapshot = await getDoc(mainRestaurantRef);
+      if (mainRestaurantSnapshot.exists()) {
+        return { id: mainRestaurantSnapshot.id, ...mainRestaurantSnapshot.data() };
+      }
+    }
+  } catch (error) {
+    if (error?.code !== "permission-denied") throw error;
+  }
+
   const userEmail = String(user.email || "").toLocaleLowerCase("bg-BG");
   const legacyRestaurantId = userEmail === "bulgaria@restaurant.bg" ? DEFAULT_RESTAURANT_ID : `user_${user.uid}`;
   const restaurantRef = doc(db, collections.restaurants, legacyRestaurantId);
@@ -53,6 +82,7 @@ export async function ensureDefaultRestaurant(db, user) {
     name: "Моят ресторант",
     timezone: "Europe/Sofia",
     ownerUid: user.uid,
+    memberUids: [user.uid],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   };

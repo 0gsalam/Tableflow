@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = "tableflow-shell-v41";
+const CACHE_NAME = "tableflow-shell-v44";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -16,6 +16,9 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   event.respondWith(fetch(event.request));
 });
+
+
+
 
 
 

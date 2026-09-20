@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnUserRestaurant(restaurantId) {
+      return signedIn() && restaurantId == 'user_' + request.auth.uid;
+    }
+
+    function restaurantPath(restaurantId) {
+      return /databases/$(database)/documents/restaurants/$(restaurantId);
+    }
+
+    function ownsRestaurant(restaurantId) {
+      return signedIn()
+        && exists(restaurantPath(restaurantId))
+        && get(restaurantPath(restaurantId)).data.ownerUid == request.auth.uid;
+    }
+
+    function canReadRestaurant(restaurantId) {
+      return ownsRestaurant(restaurantId) || isOwnUserRestaurant(restaurantId);
+    }
+
+    function createsOwnRestaurant(restaurantId) {
+      return signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && (restaurantId == 'main' || isOwnUserRestaurant(restaurantId));
+    }
+
+    function isOwnerScoped(restaurantId) {
+      return ownsRestaurant(restaurantId)
+        && request.resource.data.restaurantId == restaurantId;
+    }
+
+    function existingOwnerScoped(restaurantId) {
+      return ownsRestaurant(restaurantId)
+        && resource.data.restaurantId == restaurantId;
+    }
+
+    match /restaurants/{restaurantId} {
+      allow read: if canReadRestaurant(restaurantId);
+      allow create: if createsOwnRestaurant(restaurantId);
+      allow update, delete: if ownsRestaurant(restaurantId)
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+
+      match /tables/{tableId} {
+        allow read: if ownsRestaurant(restaurantId);
+        allow create, update: if isOwnerScoped(restaurantId);
+        allow delete: if existingOwnerScoped(restaurantId);
+      }
+
+      match /reservations/{reservationId} {
+        allow read: if ownsRestaurant(restaurantId);
+        allow create, update: if isOwnerScoped(restaurantId);
+        allow delete: if existingOwnerScoped(restaurantId);
+      }
+
+      match /waiting/{waitingId} {
+        allow read: if ownsRestaurant(restaurantId);
+        allow create, update: if isOwnerScoped(restaurantId);
+        allow delete: if existingOwnerScoped(restaurantId);
+      }
+
+      match /staff/{userId} {
+        allow read: if ownsRestaurant(restaurantId);
+        allow create, update, delete: if ownsRestaurant(restaurantId);
+      }
+    }
+  }
+}

@@ -2,8 +2,14 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
     function signedIn() {
       return request.auth != null;
+    }
+
+    function isRestaurantMember(restaurantId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/restaurants/$(restaurantId)/members/$(request.auth.uid));
     }
 
     function isOwnUserRestaurant(restaurantId) {
@@ -20,52 +26,86 @@ service cloud.firestore {
         && get(restaurantPath(restaurantId)).data.ownerUid == request.auth.uid;
     }
 
-    function canReadRestaurant(restaurantId) {
-      return ownsRestaurant(restaurantId) || isOwnUserRestaurant(restaurantId);
+    function ownsCurrentRestaurant() {
+      return signedIn()
+        && resource.data.ownerUid == request.auth.uid;
+    }
+
+    function hasMemberUid(restaurantId) {
+      return signedIn()
+        && exists(restaurantPath(restaurantId))
+        && 'memberUids' in get(restaurantPath(restaurantId)).data
+        && request.auth.uid in get(restaurantPath(restaurantId)).data.memberUids;
+    }
+
+    function currentRestaurantHasMemberUid() {
+      return signedIn()
+        && 'memberUids' in resource.data
+        && request.auth.uid in resource.data.memberUids;
+    }
+
+    function canAccessRestaurant(restaurantId) {
+      return ownsRestaurant(restaurantId)
+        || isOwnUserRestaurant(restaurantId)
+        || hasMemberUid(restaurantId)
+        || isRestaurantMember(restaurantId);
+    }
+
+    function canReadCurrentRestaurant(restaurantId) {
+      return ownsCurrentRestaurant()
+        || isOwnUserRestaurant(restaurantId)
+        || currentRestaurantHasMemberUid()
+        || isRestaurantMember(restaurantId);
     }
 
     function createsOwnRestaurant(restaurantId) {
       return signedIn()
         && request.resource.data.ownerUid == request.auth.uid
+        && request.auth.uid in request.resource.data.memberUids
         && (restaurantId == 'main' || isOwnUserRestaurant(restaurantId));
     }
 
-    function isOwnerScoped(restaurantId) {
-      return ownsRestaurant(restaurantId)
+    function isRestaurantScoped(restaurantId) {
+      return canAccessRestaurant(restaurantId)
         && request.resource.data.restaurantId == restaurantId;
     }
 
-    function existingOwnerScoped(restaurantId) {
-      return ownsRestaurant(restaurantId)
+    function existingRestaurantScoped(restaurantId) {
+      return canAccessRestaurant(restaurantId)
         && resource.data.restaurantId == restaurantId;
     }
 
     match /restaurants/{restaurantId} {
-      allow read: if canReadRestaurant(restaurantId);
+      allow read: if canReadCurrentRestaurant(restaurantId);
       allow create: if createsOwnRestaurant(restaurantId);
       allow update, delete: if ownsRestaurant(restaurantId)
         && request.resource.data.ownerUid == resource.data.ownerUid;
 
       match /tables/{tableId} {
-        allow read: if ownsRestaurant(restaurantId);
-        allow create, update: if isOwnerScoped(restaurantId);
-        allow delete: if existingOwnerScoped(restaurantId);
+        allow read: if canAccessRestaurant(restaurantId);
+        allow create, update: if isRestaurantScoped(restaurantId);
+        allow delete: if existingRestaurantScoped(restaurantId);
       }
 
       match /reservations/{reservationId} {
-        allow read: if ownsRestaurant(restaurantId);
-        allow create, update: if isOwnerScoped(restaurantId);
-        allow delete: if existingOwnerScoped(restaurantId);
+        allow read: if canAccessRestaurant(restaurantId);
+        allow create, update: if isRestaurantScoped(restaurantId);
+        allow delete: if existingRestaurantScoped(restaurantId);
       }
 
       match /waiting/{waitingId} {
-        allow read: if ownsRestaurant(restaurantId);
-        allow create, update: if isOwnerScoped(restaurantId);
-        allow delete: if existingOwnerScoped(restaurantId);
+        allow read: if canAccessRestaurant(restaurantId);
+        allow create, update: if isRestaurantScoped(restaurantId);
+        allow delete: if existingRestaurantScoped(restaurantId);
       }
 
       match /staff/{userId} {
-        allow read: if ownsRestaurant(restaurantId);
+        allow read: if canAccessRestaurant(restaurantId);
+        allow create, update, delete: if ownsRestaurant(restaurantId);
+      }
+
+      match /members/{userId} {
+        allow read: if canAccessRestaurant(restaurantId);
         allow create, update, delete: if ownsRestaurant(restaurantId);
       }
     }

@@ -1,11 +1,11 @@
-﻿import {
+import {
   getAuthErrorMessage,
   loginWithEmailAndPassword,
   logout,
   watchAuthState
-} from "./auth.js?v=41";
-import { prepareMobileBrowserChrome, registerServiceWorker } from "./pwa.js?v=41";
-import { getTodayKey } from "./dates.js?v=41";
+} from "./auth.js?v=44";
+import { prepareMobileBrowserChrome, registerServiceWorker } from "./pwa.js?v=44";
+import { getTodayKey } from "./dates.js?v=44";
 import {
   addRestaurantTable,
   createWaitingEntry,
@@ -23,7 +23,7 @@ import {
   loadRestaurantTables,
   updateRestaurantTable,
   updateTablePosition
-} from "./store.js?v=41";
+} from "./store.js?v=44";
 import {
   renderDashboard,
   renderFatalError,
@@ -32,7 +32,7 @@ import {
   renderReservationListScreen,
   renderReservationsScreen,
   renderTablesScreen
-} from "./ui.js?v=41";
+} from "./ui.js?v=44";
 
 registerServiceWorker();
 prepareMobileBrowserChrome();
@@ -296,6 +296,9 @@ async function handleLogin({ email, password }) {
 
 
 startApp();
+
+
+
 
 
 
